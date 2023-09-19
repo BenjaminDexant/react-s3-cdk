@@ -1,6 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
-import { aws_s3 as s3, aws_iam as iam } from 'aws-cdk-lib';
-import { BlockPublicAccess } from 'aws-cdk-lib/aws-s3';
+import {
+  aws_s3 as s3,
+  aws_cloudfront as cloudfront
+} from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 
 export class InfraStack extends cdk.Stack {
@@ -12,15 +14,23 @@ export class InfraStack extends cdk.Stack {
     const bucket = new s3.Bucket(this, 'GeotaskLandingPageBucket', {
       bucketName: 'geotask-landing-page',
       websiteIndexDocument: 'index.html',
-      blockPublicAccess: new s3.BlockPublicAccess({ restrictPublicBuckets: false }),
+    });
+
+    const cloudfrontOAI = new cloudfront.OriginAccessIdentity(this, 'GeotaskLandingPageOAI', {
+      comment: 'Origin Access Identity for Geotask Landing Page',
+    });
+
+    const distribution = new cloudfront.CloudFrontWebDistribution(this, 'GeotaskLandingPageDistribution', {
+      originConfigs: [
+        {
+          s3OriginSource: {
+            s3BucketSource: bucket,
+            originAccessIdentity: cloudfrontOAI,
+          },
+          behaviors: [{ isDefaultBehavior: true }],
+        },
+      ],
     });
   
-    const bucketPolicy = new iam.PolicyStatement({
-      actions: ['s3:GetObject'],
-      resources: [`${bucket.bucketArn}/*`],
-      principals: [new iam.StarPrincipal()],
-    });
-
-    bucket.addToResourcePolicy(bucketPolicy);
-
+    bucket.grantRead(cloudfrontOAI.grantPrincipal);
 }}
